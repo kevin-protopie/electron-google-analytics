@@ -1,5 +1,6 @@
 import fetch from 'electron-fetch';
 import { v4 as uuidv4 } from 'uuid';
+import FormData from 'form-data'
 
 class Analytics {
   /**
@@ -443,9 +444,12 @@ class Analytics {
       url = `${this.globalBaseURL}${this.globalDebugURL}${this.globalCollectURL}`;
     }
 
+    const formData = new FormData();
+    Object.keys(formObj).map((key) => formData.append(key,formObj[key]));
+
     const reqObj = {
       method: 'post',
-      body: Object.keys(formObj).map((key) => `${encodeURI(key)}=${encodeURI(formObj[key])}`).join('&')
+      body: formData
     };
 
     if (this.globalUserAgent !== '') {
