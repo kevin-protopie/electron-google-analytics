@@ -446,6 +446,7 @@ class Analytics {
 
     const formData = new FormData();
     Object.keys(formObj).map((key) => formData.append(key,formObj[key]));
+    console.log('formObj',formObj);
 
     const reqObj = {
       method: 'post',
