@@ -1,6 +1,6 @@
-import fetch from 'electron-fetch';
+import request from 'request';
 import { v4 as uuidv4 } from 'uuid';
-import FormData from 'form-data'
+
 
 class Analytics {
   /**
@@ -426,61 +426,57 @@ class Analytics {
    *
    * @return {Promise}
    */
-  send(hitType, params, clientID) {
-    const formObj = {
-      v: this.globalVersion,
-      tid: this.globalTrackingID,
-      cid: clientID || uuidv4(),
-      t: hitType
-    };
-    if (params) Object.assign(formObj, params);
+   send(hitType, params, clientID) {
+    return new Promise((resolve, reject) => {
+      const formObj = {
+        v: this.globalVersion,
+        tid: this.globalTrackingID,
+        cid: clientID || uuidv4(),
+        t: hitType
+      };
+      if (params) Object.assign(formObj, params);
 
-    if (Object.keys(this.customParams).length > 0) {
-      Object.assign(formObj, this.customParams);
-    }
+      if (Object.keys(this.customParams).length > 0) {
+        Object.assign(formObj, this.customParams);
+      }
 
-    let url = `${this.globalBaseURL}${this.globalCollectURL}`;
-    if (this.globalDebug) {
-      url = `${this.globalBaseURL}${this.globalDebugURL}${this.globalCollectURL}`;
-    }
+      let url = `${this.globalBaseURL}${this.globalCollectURL}`;
+      if (this.globalDebug) {
+        url = `${this.globalBaseURL}${this.globalDebugURL}${this.globalCollectURL}`;
+      }
 
-    const formData = new FormData();
-    Object.keys(formObj).map((key) => formData.append(key,formObj[key]));
-    console.log('formObj',formObj);
+      const reqObj = { url, form: formObj };
+      if (this.globalUserAgent !== '') {
+        reqObj.headers = { 'User-Agent': this.globalUserAgent };
+      }
 
-    const reqObj = {
-      method: 'post',
-      body: formData
-    };
+      return request.post(reqObj, (err, httpResponse, body) => {
+        if (err) return reject(err);
 
-    if (this.globalUserAgent !== '') {
-      reqObj.headers = { 'User-Agent': this.globalUserAgent };
-    }
-
-    return fetch(url, reqObj)
-      .then((res) => {
-        let response = {};
-
-        if (res.headers.get('content-type') !== 'image/gif') {
-          response = res.json();
-        } else {
-          response = res.text();
+        let bodyJson = {};
+        if (body && (httpResponse.headers['content-type'] !== 'image/gif')) {
+          bodyJson = JSON.parse(body);
         }
 
-        if (res.status === 200) {
-          return response;
-        }
+        if (httpResponse.statusCode === 200) {
+          if (this.globalDebug) {
+            if (bodyJson.hitParsingResult[0].valid) {
+              return resolve({ clientID: formObj.cid });
+            }
 
-        return Promise.reject(new Error(response));
-      }).then((json) => {
-        if (this.globalDebug) {
-          if (json.hitParsingResult[0].valid) {
-            return { clientID: formObj.cid };
+            return reject(bodyJson);
           }
+
+          return resolve({ clientID: formObj.cid });
         }
 
-        return { clientID: formObj.cid };
-      }).catch((err) => new Error(err));
+        if (httpResponse.headers['content-type'] !== 'image/gif') {
+          return reject(bodyJson);
+        }
+
+        return reject(body);
+      });
+    });
   }
 }
 
